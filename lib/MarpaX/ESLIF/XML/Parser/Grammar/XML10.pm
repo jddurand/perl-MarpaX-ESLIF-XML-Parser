@@ -2,7 +2,6 @@ use strict;
 use warnings FATAL => 'all';
 
 package MarpaX::ESLIF::XML::Parser::Grammar::XML10;
-use Class::Tiny qw//;
 use Role::Tiny::With;
 
 # ABSTRACT: XML 1.0 grammar role implementation
@@ -59,6 +58,56 @@ Returns I<extParsedEnt> bnf. This is a class method.
 my $EXTPARSEDENT_BNF = $DATA . "\n:start ::= extParsedEnt\n";
 sub extParsedEnt_bnf {
     return $EXTPARSEDENT_BNF
+}
+
+=head2 element_start_event
+
+Returns element start event name. This is a class method.
+
+=cut
+
+sub element_start_event {
+    return '^ELEMENT_START'
+}
+
+=head2 element_end_event
+
+Returns element end event name. This is a class method.
+
+=cut
+
+sub element_end_event {
+    return '^ELEMENT_END'
+}
+
+=head2 element_value_symbol
+
+Returns element value symbol name. This is a class method.
+
+=cut
+
+sub element_value_symbol {
+    return 'ELEMENT_VALUE'
+}
+
+=head2 element_start_symbols
+
+Returns element start symbol names. This is a class method.
+
+=cut
+
+sub element_start_symbols {
+    return [ qw/ELEMENT_START/ ]
+}
+
+=head2 element_end_symbols
+
+Returns element start symbol names. This is a class method.
+
+=cut
+
+sub element_end_symbols {
+    return [ qw/ELEMENT_END1 ELEMENT_END2/ ]
 }
 
 with 'MarpaX::ESLIF::XML::Parser::Role::Grammar';
@@ -478,10 +527,10 @@ ELEMENT_START               ~ '<'
 #############################
 # For element end detection
 #############################
-:lexeme ::= ELEMENT_END1 pause => before event => ^ELEMENT_END1=off
+:lexeme ::= ELEMENT_END1 pause => before event => ^ELEMENT_END
 ELEMENT_END1                ~ '>'
 
-:lexeme ::= ELEMENT_END2 pause => before event => ^ELEMENT_END2=off
+:lexeme ::= ELEMENT_END2 pause => before event => ^ELEMENT_END
 ELEMENT_END2                ~ '/>'
 
 #############################

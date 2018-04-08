@@ -14,15 +14,28 @@ use MarpaX::ESLIF::XML::Parser::Value::Interface::XmlDecl;
 use MarpaX::ESLIF::XML::Parser::Grammar::XML10;
 
 my $ESLIF = MarpaX::ESLIF->new($log);
+my $xml10_document_grammar;
+my $xml10_element_grammar;
+my $xml10_extParsedEnt_grammar;
+my $xml10_element_start_event;
+my $xml10_element_end_event;
+my $xml10_element_value_symbol;
+my $xml10_element_start_symbols;
+my $xml10_element_end_symbols;
 
-use Class::Tiny qw/reader/, 
+use Class::Tiny qw/reader/,
 {
     #
-    # Lazy attributes
+    # Lazy class attributes
     #
-    xml10_document_grammar     => sub { MarpaX::ESLIF::Grammar->new($ESLIF, MarpaX::ESLIF::XML::Parser::Grammar::XML10->document_bnf) },
-    xml10_element_grammar      => sub { MarpaX::ESLIF::Grammar->new($ESLIF, MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_bnf) },
-    xml10_extParsedEnt_grammar => sub { MarpaX::ESLIF::Grammar->new($ESLIF, MarpaX::ESLIF::XML::Parser::Grammar::XML10->extParsedEnt_bnf) }
+    xml10_document_grammar      => sub { return $xml10_document_grammar      //= MarpaX::ESLIF::Grammar->new($ESLIF, MarpaX::ESLIF::XML::Parser::Grammar::XML10->document_bnf) },
+    xml10_element_grammar       => sub { return $xml10_element_grammar       //= MarpaX::ESLIF::Grammar->new($ESLIF, MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_bnf) },
+    xml10_extParsedEnt_grammar  => sub { return $xml10_extParsedEnt_grammar  //= MarpaX::ESLIF::Grammar->new($ESLIF, MarpaX::ESLIF::XML::Parser::Grammar::XML10->extParsedEnt_bnf) },
+    xml10_element_start_event   => sub { return $xml10_element_start_event   //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_start_event },
+    xml10_element_end_event     => sub { return $xml10_element_end_event     //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_end_event },
+    xml10_element_value_symbol  => sub { return $xml10_element_value_symbol  //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_value_symbol },
+    xml10_element_start_symbols => sub { return $xml10_element_start_symbols //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_start_symbols },
+    xml10_element_end_symbols   => sub { return $xml10_element_end_symbols   //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_end_symbols }
 };
 
 my $BOM_GRAMMAR     = MarpaX::ESLIF::Grammar->new($ESLIF, ${__PACKAGE__->section_data('BOM')});
@@ -270,10 +283,20 @@ sub parse {
     # Decide the XML version to use
     # -----------------------------
     my $version = $version_from_xmldecl // '1.0';
-    my ($document_grammar, $element_grammar, $extParsedEnt_grammar);
-    my $xmlclass;
+
+    # --------------------------------------------
+    # Prepare all we need from this implementation
+    # --------------------------------------------
+    my %impl;
     if ($version eq '1.0') {
-        ($document_grammar, $element_grammar, $extParsedEnt_grammar) = ($self->xml10_document_grammar, $self->xml10_element_grammar, $self->xml10_extParsedEnt_grammar)
+        $impl{document_grammar}      = $self->xml10_document_grammar;
+        $impl{element_grammar}       = $self->xml10_element_grammar;
+        $impl{extParsedEnt_grammar}  = $self->xml10_extParsedEnt_grammar;
+        $impl{element_start_event}   = $self->xml10_element_start_event;
+        $impl{element_end_event}     = $self->xml10_element_end_event;
+        $impl{element_value_symbol}  = $self->xml10_element_value_symbol;
+        $impl{element_start_symbols} = $self->xml10_element_start_symbols;
+        $impl{element_end_symbols}   = $self->xml10_element_end_symbols;
     } else {
         croak 'MarpaX::ESLIF::XML::Parser::Grammar::XML11 not yet implemented'
     }
@@ -289,21 +312,15 @@ sub parse {
         );
 
     my $eslifRecognizer = MarpaX::ESLIF::Recognizer->new(
-        $document_grammar,
+        $impl{document_grammar},
         $recognizerInterface
         );
     #
     # At the very beginning ELEMENT_END events must never occur
     #
-    $eslifRecognizer->eventOnOff('ELEMENT_END1', [ MarpaX::ESLIF::Event::Type->MARPAESLIF_EVENTTYPE_BEFORE ], 0);
-    $eslifRecognizer->eventOnOff('ELEMENT_END2', [ MarpaX::ESLIF::Event::Type->MARPAESLIF_EVENTTYPE_BEFORE ], 0);
+    map { $eslifRecognizer->eventOnOff($_, [ MarpaX::ESLIF::Event::Type->MARPAESLIF_EVENTTYPE_BEFORE ], 0) } @{$impl{element_end_symbols}};
 
-    return $self->_parse(
-        $eslifRecognizer,
-        $element_grammar, 
-        $extParsedEnt_grammar,
-        0 # level
-        )
+    return $self->_parse($eslifRecognizer, \%impl, 0) # level 0
 }
 
 # ======================================================================================
@@ -313,14 +330,14 @@ sub parse {
 # ======================================================================================
 sub _parse {
     no warnings 'recursion';
-    my ($self, $currentRecognizer, $element_grammar, $extParsedEnt_grammar, $level) = @_;
+    my ($self, $currentRecognizer, $impl, $level) = @_;
 
     return 0 unless $currentRecognizer->scan();
-    return 0 unless $self->_manage_events($currentRecognizer, $element_grammar, $extParsedEnt_grammar, $level);
+    return 0 unless $self->_manage_events($currentRecognizer, $impl, $level);
     if ($currentRecognizer->isCanContinue) {
         do {
             return 0 unless $currentRecognizer->resume;
-            my $rcb = $self->_manage_events($currentRecognizer, $element_grammar, $extParsedEnt_grammar, $level);
+            my $rcb = $self->_manage_events($currentRecognizer, $impl, $level);
             return 0 unless $rcb;
             return 1 if ($rcb < 0)
         } while ($currentRecognizer->isCanContinue)
@@ -337,13 +354,14 @@ sub _parse {
 # SAX events is happening.
 # ======================================================================================
 sub _manage_events {
-    my ($self, $currentRecognizer, $element_grammar, $extParsedEnt_grammar, $level) = @_;
+    my ($self, $currentRecognizer, $impl, $level) = @_;
 
     foreach (@{$currentRecognizer->events()}) {
         
         $log->tracef('Event %s', $_);
 
-        if ($_->{event} eq '^ELEMENT_START') {
+        my $event = $_->{event};
+        if ($event eq $impl->{element_start_event}) {
             #
             # Get symbol and data
             #
@@ -352,12 +370,11 @@ sub _manage_events {
             #
             # Create an element recognizer
             #
-            my $elementRecognizer = $currentRecognizer->newFrom($element_grammar);
+            my $elementRecognizer = $currentRecognizer->newFrom($impl->{element_grammar});
             #
-            # Enable element end events
+            # Enable element end "before" events
             #
-            $elementRecognizer->eventOnOff('ELEMENT_END1', [ MarpaX::ESLIF::Event::Type->MARPAESLIF_EVENTTYPE_BEFORE ], 1);
-            $elementRecognizer->eventOnOff('ELEMENT_END2', [ MarpaX::ESLIF::Event::Type->MARPAESLIF_EVENTTYPE_BEFORE ], 1);
+            map { $elementRecognizer->eventOnOff($_, [ MarpaX::ESLIF::Event::Type->MARPAESLIF_EVENTTYPE_BEFORE ], 1) } @{$impl->{element_end_symbols}};
             #
             # Push the lexeme
             #
@@ -365,12 +382,12 @@ sub _manage_events {
             #
             # Call for the element parsing
             #
-            return 0 unless $self->_parse($elementRecognizer, $element_grammar, $extParsedEnt_grammar, $level + 1);
+            return 0 unless $self->_parse($elementRecognizer, $impl, $level + 1);
             #
             # Push the ELEMENT_VALUE
             #
-            return $currentRecognizer->lexemeRead('ELEMENT_VALUE', undef, 0)
-        } elsif ($_->{event} eq '^ELEMENT_END1' || $_->{event} eq '^ELEMENT_END2') {
+            return $currentRecognizer->lexemeRead($impl->{element_value_symbol}, undef, 0)
+        } elsif ($event eq $impl->{element_end_event}) {
             #
             # Get symbol and data
             #
