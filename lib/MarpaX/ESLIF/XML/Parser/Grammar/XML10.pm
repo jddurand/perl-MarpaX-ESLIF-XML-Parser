@@ -9,13 +9,15 @@ use Class::Tiny qw/
     _VC_Root_Element_Type
     /,
 {
-    _SystemLiteralInner => sub { return '' },
-    _EntityValueInner => sub { return '' },
-    _AttValueInner => sub { return '' },
+    _SYSTEMLITERALINNER => sub { return '' },
+    _ENTITYVALUEINNER   => sub { return '' },
+    _ATTVALUEINNER      => sub { return '' },
+    _PUBIDLITERALINNER  => sub { return '' },
 
-    _SystemLiteral => sub { return '' },
-    _EntityValue => sub { return '' },
-    _AttValue => sub { return '' },
+    _SystemLiteral      => sub { return '' },
+    _EntityValue        => sub { return '' },
+    _AttValue           => sub { return '' },
+    _PubidLiteral       => sub { return '' },
 };
 use Log::Any qw/$log/;
 use Role::Tiny::With;
@@ -137,13 +139,16 @@ sub grammar_callbacks {
         'NAME$'                 => \&NAME,
         'doctypedecl_Name[]'    => \&doctypedecl_Name,
 
-        'ENTITYVALUEINNER$'     => \&EntityValueInner,
-        'ATTVALUEINNER$'        => \&AttValueInner,
-        'SYSTEMLITERALINNER$'   => \&SystemLiteralInner,
+        'ENTITYVALUEINNER$'     => \&ENTITYVALUEINNER,
+        'ATTVALUEINNER$'        => \&ATTVALUEINNER,
+        'SYSTEMLITERALINNER$'   => \&SYSTEMLITERALINNER,
+        'PUBIDCHAR$'            => \&PUBIDCHAR,
+        'PUBIDCHAR2$'           => \&PUBIDCHAR2,
 
         'EntityValue$'          => \&EntityValue,
         'AttValue$'             => \&AttValue,
         'SystemLiteral$'        => \&SystemLiteral,
+        'PubidLiteral$'         => \&PubidLiteral,
     }
 }
 
@@ -173,53 +178,81 @@ sub doctypedecl_Name {
     # Register root element type validation constraint
     #
     $self->_VC_Root_Element_Type($self->_NAME);
-    $log->tracef('doctypedecl Name: %s', $self->_NAME);
+    $log->debugf('doctypedecl Name: %s', $self->_NAME);
     return 1
 }
 
-=head2 $self->EntityValueInner($recognizer, $eventref)
+=head2 $self->ENTITYVALUEINNER($recognizer, $eventref)
 
-EntityValueInner callback. This is an instance method. Returns a true value on success, a false value on failure.
+ENTITYVALUEINNER lexeme callback. This is an instance method. Returns a true value on success, a false value on failure.
 
 =cut
 
-sub EntityValueInner {
+sub ENTITYVALUEINNER {
     my ($self, $recognizer, $eventref) = @_;
     #
     # <ENTITYVALUEDQINNER>      ~ [\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{24}\x{27}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
     # <ENTITYVALUESQINNER>      ~ [\x{9}\x{A}\x{D}\x{20}-\x{24}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
     #
-    return $self->_EntityValueInner($self->_EntityValueInner . $recognizer->lexemeLastPause($eventref->{symbol}))
+    return $self->_ENTITYVALUEINNER($self->_ENTITYVALUEINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
 }
 
-=head2 $self->AttValueInner($recognizer, $eventref)
+=head2 $self->ATTVALUEINNER($recognizer, $eventref)
 
-AttValueInner callback. This is an instance method. Returns a true value on success, a false value on failure.
+ATTVALUEINNER lexeme callback. This is an instance method. Returns a true value on success, a false value on failure.
 
 =cut
 
-sub AttValueInner {
+sub ATTVALUEINNER {
     my ($self, $recognizer, $eventref) = @_;
     #
     # <ATTVALUEDQINNER>         ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{25}\x{27}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
     # <ATTVALUESQINNER>         ~ /[\x{9}\x{A}\x{D}\x{20}-\x{25}\x{28}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
     #
-    return $self->_AttValueInner($self->_AttValueInner . $recognizer->lexemeLastPause($eventref->{symbol}))
+    return $self->_ATTVALUEINNER($self->_ATTVALUEINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
 }
 
-=head2 $self->SystemLiteralInner($recognizer, $eventref)
+=head2 $self->SYSTEMLITERALINNER($recognizer, $eventref)
 
-SystemLiteralInner callback. This is an instance method. Returns a true value on success, a false value on failure.
+SYSTEMLITERALINNER lexeme callback. This is an instance method. Returns a true value on success, a false value on failure.
 
 =cut
 
-sub SystemLiteralInner {
+sub SYSTEMLITERALINNER {
     my ($self, $recognizer, $eventref) = @_;
     #
     # <SYSTEMLITERALDQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
     # <SYSTEMLITERALSQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{26}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
     #
-    return $self->_SystemLiteralInner($self->_SystemLiteralInner . $recognizer->lexemeLastPause($eventref->{symbol}))
+    return $self->_SYSTEMLITERALINNER($self->_SYSTEMLITERALINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
+}
+
+=head2 $self->PUBIDCHAR($recognizer, $eventref)
+
+PUBIDCHAR lexeme callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub PUBIDCHAR {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # PUBIDCHAR                 ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-'()+,./:=?;!*#@$_%]
+    #
+    return $self->_PUBIDLITERALINNER($self->_PUBIDLITERALINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
+}
+
+=head2 $self->PUBIDCHAR2($recognizer, $eventref)
+
+PUBIDCHAR2 lexeme callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub PUBIDCHAR2 {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # PUBIDCHAR2                ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-()+,./:=?;!*#@$_%]  # Same as PUBIDCHAR but without 'x
+    #
+    return $self->_PUBIDLITERALINNER($self->_PUBIDLITERALINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
 }
 
 =head2 $self->EntityValue($recognizer, $eventref)
@@ -234,9 +267,9 @@ sub EntityValue {
     # EntityValue        ::= '"' <EntityValue1 any>   '"'
     #                      | "'" <EntityValue2 any>   "'"
     #
-    $self->_EntityValue($self->_EntityValueInner);
-    $self->_EntityValueInner('');
-    $log->tracef('EntityValue: %s', $self->_EntityValue);
+    $self->_EntityValue($self->_ENTITYVALUEINNER);
+    $self->_ENTITYVALUEINNER('');
+    $log->debugf('EntityValue: %s', $self->_EntityValue);
     return 1
 }
 
@@ -252,9 +285,9 @@ sub AttValue {
     # AttValue        ::= '"' <AttValue1 any>   '"'
     #                   | "'" <AttValue2 any>   "'"
     #
-    $self->_AttValue($self->_AttValueInner);
-    $self->_AttValueInner('');
-    $log->tracef('AttValue: %s', $self->_AttValue);
+    $self->_AttValue($self->_ATTVALUEINNER);
+    $self->_ATTVALUEINNER('');
+    $log->debugf('AttValue: %s', $self->_AttValue);
     return 1
 }
 
@@ -270,9 +303,27 @@ sub SystemLiteral {
     # SystemLiteral        ::= '"' <SystemLiteral1 any>   '"'
     #                        | "'" <SystemLiteral2 any>   "'"
     #
-    $self->_SystemLiteral($self->_SystemLiteralInner);
-    $self->_SystemLiteralInner('');
-    $log->tracef('SystemLiteral: %s', $self->_SystemLiteral);
+    $self->_SystemLiteral($self->_SYSTEMLITERALINNER);
+    $self->_SYSTEMLITERALINNER('');
+    $log->debugf('SystemLiteral: %s', $self->_SystemLiteral);
+    return 1
+}
+
+=head2 $self->PubidLiteral($recognizer, $eventref)
+
+PubidLiteral callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub PubidLiteral {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # PubidLiteral        ::= '"' <PubidLiteral1 any>   '"'
+    #                        | "'" <PubidLiteral2 any>   "'"
+    #
+    $self->_PubidLiteral($self->_PUBIDLITERALINNER);
+    $self->_PUBIDLITERALINNER('');
+    $log->debugf('PubidLiteral: %s', $self->_PubidLiteral);
     return 1
 }
 
@@ -329,11 +380,11 @@ AttValue           ::= '"' <AttValue1 any>      '"'
 event SystemLiteral$ = completed SystemLiteral
 SystemLiteral      ::= '"' <SystemLiteral1 any> '"'
                      | "'" <SystemLiteral2 any> "'"
-# event PubidLiteral$ = completed PubidLiteral
+event PubidLiteral$ = completed PubidLiteral
 PubidLiteral       ::= '"' <PubidChar1 any>     '"'
                      | "'" <PubidChar2 any>     "'"
 # event PubidChar$ = completed PubidChar
-PubidChar          ::= [\x{20}\x{D}\x{A}a-zA-Z0-9\-'()+,./:=?;!*#@$_%]
+PubidChar          ::= PUBIDCHAR
 # event CharData$ = completed CharData
 CharData           ::= <CharData Exceptioned>
 # event Comment$ = completed Comment
@@ -565,7 +616,7 @@ PublicID           ::= 'PUBLIC' S PubidLiteral
 # event PubidChar1_any$ = completed <PubidChar1 any>
 <PubidChar1 any>          ::= PubidChar*
 # event PubidChar2$ = completed <PubidChar2>
-<PubidChar2>              ::= [\x{20}\x{D}\x{A}a-zA-Z0-9\-()+,./:=?;!*#@$_%]  # Same as PubidChar but without '
+<PubidChar2>              ::= PUBIDCHAR2
 # event PubidChar2_any$ = completed <PubidChar2 any>
 <PubidChar2 any>          ::= <PubidChar2>*
 # event XMLDecl_maybe$ = completed <XMLDecl maybe>
@@ -819,3 +870,8 @@ ELEMENT_VALUE               ~ [^\s\S]
 :lexeme ::= SYSTEMLITERALSQINNER pause => after event => SYSTEMLITERALINNER$
 <SYSTEMLITERALDQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
 <SYSTEMLITERALSQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{26}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+
+:lexeme ::= PUBIDCHAR  pause => after event => PUBIDCHAR$
+:lexeme ::= PUBIDCHAR2 pause => after event => PUBIDCHAR2$
+PUBIDCHAR                 ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-'()+,./:=?;!*#@$_%]
+PUBIDCHAR2                ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-()+,./:=?;!*#@$_%]  # Same as PUBIDCHAR but without '
