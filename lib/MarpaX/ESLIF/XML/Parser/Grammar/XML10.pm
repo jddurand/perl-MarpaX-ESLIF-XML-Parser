@@ -2,6 +2,12 @@ use strict;
 use warnings FATAL => 'all';
 
 package MarpaX::ESLIF::XML::Parser::Grammar::XML10;
+use Class::Tiny qw/
+    valid
+    wellformed
+    _NAME
+    _VC_Root_Element_Type
+    /;
 use Role::Tiny::With;
 
 # ABSTRACT: XML 1.0 grammar role implementation
@@ -27,7 +33,7 @@ my $DATA  = do { local $/; <DATA> };
 
 =head1 METHODS
 
-=head2 document_bnf
+=head2 $class->document_bnf
 
 Returns I<document> grammar. This is a class method.
 
@@ -38,7 +44,7 @@ sub document_bnf {
     return $DOCUMENT_BNF
 }
 
-=head2 element_bnf
+=head2 $class->element_bnf
 
 Returns I<element> bnf. This is a class method.
 
@@ -49,7 +55,7 @@ sub element_bnf {
     return $ELEMENT_BNF
 }
 
-=head2 extParsedEnt_bnf
+=head2 $class->extParsedEnt_bnf
 
 Returns I<extParsedEnt> bnf. This is a class method.
 
@@ -60,7 +66,7 @@ sub extParsedEnt_bnf {
     return $EXTPARSEDENT_BNF
 }
 
-=head2 element_start_event
+=head2 $class->element_start_event
 
 Returns element start event name. This is a class method.
 
@@ -70,7 +76,7 @@ sub element_start_event {
     return '^ELEMENT_START'
 }
 
-=head2 element_end_event
+=head2 $class->element_end_event
 
 Returns element end event name. This is a class method.
 
@@ -80,7 +86,7 @@ sub element_end_event {
     return '^ELEMENT_END'
 }
 
-=head2 element_value_symbol
+=head2 $class->element_value_symbol
 
 Returns element value symbol name. This is a class method.
 
@@ -90,7 +96,7 @@ sub element_value_symbol {
     return 'ELEMENT_VALUE'
 }
 
-=head2 element_start_symbols
+=head2 $class->element_start_symbols
 
 Returns element start symbol names. This is a class method.
 
@@ -100,7 +106,7 @@ sub element_start_symbols {
     return [ qw/ELEMENT_START/ ]
 }
 
-=head2 element_end_symbols
+=head2 $class->element_end_symbols
 
 Returns element start symbol names. This is a class method.
 
@@ -108,6 +114,47 @@ Returns element start symbol names. This is a class method.
 
 sub element_end_symbols {
     return [ qw/ELEMENT_END1 ELEMENT_END2/ ]
+}
+
+=head2 $class->grammar_callbacks
+
+Returns grammar callbacks. This is a class method.
+
+=cut
+
+sub grammar_callbacks {
+    return {
+        'NAME$' => \&NAME,
+        'doctypedecl_Name[]' => \&doctypedecl_Name
+    }
+}
+
+=head2 $self->NAME($recognizer)
+
+NAME's lexeme completion callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub NAME {
+    my ($self, $recognizer) = @_;
+
+    return $self->_NAME($recognizer->lexemeLastPause('NAME'))
+}
+
+=head2 $self->doctypedecl_Name($recognizer)
+
+doctypedecl's Name callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub doctypedecl_Name {
+    my ($self, $recognizer) = @_;
+    #
+    # '<!DOCTYPE' S Name       ... and Name ::= NAME
+    #
+    # Register root element type validation constraint
+    #
+    return $self->_VC_Root_Element_Type($self->_NAME)
 }
 
 with 'MarpaX::ESLIF::XML::Parser::Role::Grammar';
@@ -208,10 +255,12 @@ Misc               ::= Comment
                      | PI
                      | S1
 # event doctypedecl$ = completed doctypedecl
-doctypedecl        ::= '<!DOCTYPE' S Name              <S maybe>                             '>'
-                     | '<!DOCTYPE' S Name              <S maybe> '[' intSubset ']' <S maybe> '>'
-                     | '<!DOCTYPE' S Name S ExternalID <S maybe>                             '>'
-                     | '<!DOCTYPE' S Name S ExternalID <S maybe> '[' intSubset ']' <S maybe> '>'
+doctypedecl        ::= '<!DOCTYPE' S Name doctypedecl_Name              <S maybe>                             '>'
+                     | '<!DOCTYPE' S Name doctypedecl_Name              <S maybe> '[' intSubset ']' <S maybe> '>'
+                     | '<!DOCTYPE' S Name doctypedecl_Name S ExternalID <S maybe>                             '>'
+                     | '<!DOCTYPE' S Name doctypedecl_Name S ExternalID <S maybe> '[' intSubset ']' <S maybe> '>'
+event doctypedecl_Name[] = nulled doctypedecl_Name
+doctypedecl_Name   ::=
 #
 # https://lists.w3.org/Archives/Public/xml-editor/2011OctDec/0001
 #
@@ -547,7 +596,7 @@ ELEMENT_VALUE               ~ [^\s\S]
 # <_NAME>                    ~ <_NAMESTARTCHAR> <_NAMECHAR any>
 
 <_NAME>                    ~ /[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*/u
-# :lexeme ::= NAME pause => after event => NAME$
+:lexeme ::= NAME pause => after event => NAME$
 <NAME>                     ~ <_NAME>
 
 ################

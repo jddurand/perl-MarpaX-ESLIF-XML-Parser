@@ -7,6 +7,8 @@ use Role::Tiny;
 requires qw/document_bnf element_bnf extParsedEnt_bnf
             element_start_event element_end_event
             element_value_symbol
-            element_start_symbols element_end_symbols/;
+            element_start_symbols element_end_symbols
+            grammar_callbacks
+            /;
 
 1;
