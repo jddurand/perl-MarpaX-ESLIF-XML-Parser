@@ -7,7 +7,17 @@ use Class::Tiny qw/
     wellformed
     _NAME
     _VC_Root_Element_Type
-    /;
+    /,
+{
+    _SystemLiteralInner => sub { return '' },
+    _EntityValueInner => sub { return '' },
+    _AttValueInner => sub { return '' },
+
+    _SystemLiteral => sub { return '' },
+    _EntityValue => sub { return '' },
+    _AttValue => sub { return '' },
+};
+
 use Role::Tiny::With;
 
 # ABSTRACT: XML 1.0 grammar role implementation
@@ -124,37 +134,141 @@ Returns grammar callbacks. This is a class method.
 
 sub grammar_callbacks {
     return {
-        'NAME$' => \&NAME,
-        'doctypedecl_Name[]' => \&doctypedecl_Name
+        'NAME$'                 => \&NAME,
+        'doctypedecl_Name[]'    => \&doctypedecl_Name,
+
+        'ENTITYVALUEINNER$'     => \&EntityValueInner,
+        'ATTVALUEINNER$'        => \&AttValueInner,
+        'SYSTEMLITERALINNER$'   => \&SystemLiteralInner,
+
+        'EntityValue$'          => \&EntityValue,
+        'AttValue$'             => \&AttValue,
+        'SystemLiteral$'        => \&SystemLiteral,
     }
 }
 
-=head2 $self->NAME($recognizer)
+=head2 $self->NAME($recognizer, $eventref)
 
 NAME's lexeme completion callback. This is an instance method. Returns a true value on success, a false value on failure.
 
 =cut
 
 sub NAME {
-    my ($self, $recognizer) = @_;
+    my ($self, $recognizer, $eventref) = @_;
 
     return $self->_NAME($recognizer->lexemeLastPause('NAME'))
 }
 
-=head2 $self->doctypedecl_Name($recognizer)
+=head2 $self->doctypedecl_Name($recognizer, $eventref)
 
 doctypedecl's Name callback. This is an instance method. Returns a true value on success, a false value on failure.
 
 =cut
 
 sub doctypedecl_Name {
-    my ($self, $recognizer) = @_;
+    my ($self, $recognizer, $eventref) = @_;
     #
     # '<!DOCTYPE' S Name       ... and Name ::= NAME
     #
     # Register root element type validation constraint
     #
     return $self->_VC_Root_Element_Type($self->_NAME)
+}
+
+=head2 $self->EntityValueInner($recognizer, $eventref)
+
+EntityValueInner callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub EntityValueInner {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # <ENTITYVALUEDQINNER>      ~ [\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{24}\x{27}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
+    # <ENTITYVALUESQINNER>      ~ [\x{9}\x{A}\x{D}\x{20}-\x{24}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
+    #
+    return $self->_EntityValueInner($self->_EntityValueInner . $recognizer->lexemeLastPause($eventref->{symbol}))
+}
+
+=head2 $self->AttValueInner($recognizer, $eventref)
+
+AttValueInner callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub AttValueInner {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # <ATTVALUEDQINNER>         ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{25}\x{27}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+    # <ATTVALUESQINNER>         ~ /[\x{9}\x{A}\x{D}\x{20}-\x{25}\x{28}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+    #
+    return $self->_AttValueInner($self->_AttValueInner . $recognizer->lexemeLastPause($eventref->{symbol}))
+}
+
+=head2 $self->SystemLiteralInner($recognizer, $eventref)
+
+SystemLiteralInner callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub SystemLiteralInner {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # <SYSTEMLITERALDQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+    # <SYSTEMLITERALSQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{26}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+    #
+    return $self->_SystemLiteralInner($self->_SystemLiteralInner . $recognizer->lexemeLastPause($eventref->{symbol}))
+}
+
+=head2 $self->EntityValue($recognizer, $eventref)
+
+EntityValue callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub EntityValue {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # EntityValue        ::= '"' <EntityValue1 any>   '"'
+    #                      | "'" <EntityValue2 any>   "'"
+    #
+    $self->_EntityValue($self->_EntityValueInner);
+    $self->_EntityValueInner('');
+    return 1
+}
+
+=head2 $self->AttValue($recognizer, $eventref)
+
+AttValue callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub AttValue {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # AttValue        ::= '"' <AttValue1 any>   '"'
+    #                   | "'" <AttValue2 any>   "'"
+    #
+    $self->_AttValue($self->_AttValueInner);
+    $self->_AttValueInner('');
+    return 1
+}
+
+=head2 $self->SystemLiteral($recognizer, $eventref)
+
+SystemLiteral callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub SystemLiteral {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # SystemLiteral        ::= '"' <SystemLiteral1 any>   '"'
+    #                        | "'" <SystemLiteral2 any>   "'"
+    #
+    $self->_SystemLiteral($self->_SystemLiteralInner);
+    $self->_SystemLiteralInner('');
+    return 1
 }
 
 with 'MarpaX::ESLIF::XML::Parser::Role::Grammar';
@@ -201,13 +315,13 @@ Names              ::= Name+ separator => [\x{20}]
 Nmtoken            ::= NameChar+
 # event Nmtokens$ = completed Nmtokens
 Nmtokens           ::= Nmtoken+ separator => [\x{20}]
-# event EntityValue$ = completed EntityValue
+event EntityValue$ = completed EntityValue
 EntityValue        ::= '"' <EntityValue1 any>   '"'
                      | "'" <EntityValue2 any>   "'"
-# event AttValue$ = completed AttValue
+event AttValue$ = completed AttValue
 AttValue           ::= '"' <AttValue1 any>      '"'
                      | "'" <AttValue2 any>      "'"
-# event SystemLiteral$ = completed SystemLiteral
+event SystemLiteral$ = completed SystemLiteral
 SystemLiteral      ::= '"' <SystemLiteral1 any> '"'
                      | "'" <SystemLiteral2 any> "'"
 # event PubidLiteral$ = completed PubidLiteral
@@ -554,18 +668,12 @@ PublicID           ::= 'PUBLIC' S PubidLiteral
 #############################
 # Grammar subtilities
 #############################
-# event EntityValueDQInner$ = completed <EntityValueDQInner>
-<EntityValueDQInner>      ::= [\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{24}\x{27}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
-# event EntityValueSQInner$ = completed <EntityValueSQInner>
-<EntityValueSQInner>      ::= [\x{9}\x{A}\x{D}\x{20}-\x{24}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
-# event AttValueDQInner$ = completed <AttValueDQInner>
-<AttValueDQInner>         ::= /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{25}\x{27}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
-# event AttValueSQInner$ = completed <AttValueSQInner>
-<AttValueSQInner>      ::= /[\x{9}\x{A}\x{D}\x{20}-\x{25}\x{28}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
-# event SystemLiteralDQInner$ = completed <SystemLiteralDQInner>
-SystemLiteralDQInner      ::= /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
-# event SystemLiteralSQInner$ = completed <SystemLiteralSQInner>
-SystemLiteralSQInner      ::= /[\x{9}\x{A}\x{D}\x{20}-\x{26}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+<EntityValueDQInner>      ::= ENTITYVALUEDQINNER
+<EntityValueSQInner>      ::= ENTITYVALUESQINNER
+<AttValueDQInner>         ::= ATTVALUEDQINNER
+<AttValueSQInner>         ::= ATTVALUESQINNER
+<SystemLiteralDQInner>    ::= SYSTEMLITERALDQINNER
+<SystemLiteralSQInner>    ::= SYSTEMLITERALSQINNER
 
 #############################
 # For element start detection
@@ -691,3 +799,18 @@ ELEMENT_VALUE               ~ [^\s\S]
 #event CharData_Exceptioned$ = completed <CharData Exceptioned>
 #<CharData Exceptioned>  ::= <CharData Unit>+
 #
+
+:lexeme ::= ENTITYVALUEDQINNER pause => after event => ENTITYVALUEINNER$
+:lexeme ::= ENTITYVALUESQINNER pause => after event => ENTITYVALUEINNER$
+<ENTITYVALUEDQINNER>      ~ [\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{24}\x{27}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
+<ENTITYVALUESQINNER>      ~ [\x{9}\x{A}\x{D}\x{20}-\x{24}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u
+
+:lexeme ::= ATTVALUEDQINNER pause => after event => ATTVALUEINNER$
+:lexeme ::= ATTVALUESQINNER pause => after event => ATTVALUEINNER$
+<ATTVALUEDQINNER>         ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{25}\x{27}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+<ATTVALUESQINNER>         ~ /[\x{9}\x{A}\x{D}\x{20}-\x{25}\x{28}-\x{3b}\x{3d}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+
+:lexeme ::= SYSTEMLITERALDQINNER pause => after event => SYSTEMLITERALINNER$
+:lexeme ::= SYSTEMLITERALSQINNER pause => after event => SYSTEMLITERALINNER$
+<SYSTEMLITERALDQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
+<SYSTEMLITERALSQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{26}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u

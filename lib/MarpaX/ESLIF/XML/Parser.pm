@@ -416,7 +416,7 @@ sub _manage_events {
         } else {
             my $coderef = $impl->{grammar_callbacks}->{$event} // '';
             if (ref($coderef) eq 'CODE') {
-                if (! $xmlobj->$coderef($currentRecognizer)) {
+                if (! $xmlobj->$coderef($currentRecognizer, $_)) {
                     $log->noticef('%s event callback returned false', $event);
                     return 0
                 }
