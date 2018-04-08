@@ -17,7 +17,7 @@ use Class::Tiny qw/
     _EntityValue => sub { return '' },
     _AttValue => sub { return '' },
 };
-
+use Log::Any qw/$log/;
 use Role::Tiny::With;
 
 # ABSTRACT: XML 1.0 grammar role implementation
@@ -172,7 +172,9 @@ sub doctypedecl_Name {
     #
     # Register root element type validation constraint
     #
-    return $self->_VC_Root_Element_Type($self->_NAME)
+    $self->_VC_Root_Element_Type($self->_NAME);
+    $log->tracef('doctypedecl Name: %s', $self->_NAME);
+    return 1
 }
 
 =head2 $self->EntityValueInner($recognizer, $eventref)
@@ -234,6 +236,7 @@ sub EntityValue {
     #
     $self->_EntityValue($self->_EntityValueInner);
     $self->_EntityValueInner('');
+    $log->tracef('EntityValue: %s', $self->_EntityValue);
     return 1
 }
 
@@ -251,6 +254,7 @@ sub AttValue {
     #
     $self->_AttValue($self->_AttValueInner);
     $self->_AttValueInner('');
+    $log->tracef('AttValue: %s', $self->_AttValue);
     return 1
 }
 
@@ -268,6 +272,7 @@ sub SystemLiteral {
     #
     $self->_SystemLiteral($self->_SystemLiteralInner);
     $self->_SystemLiteralInner('');
+    $log->tracef('SystemLiteral: %s', $self->_SystemLiteral);
     return 1
 }
 
