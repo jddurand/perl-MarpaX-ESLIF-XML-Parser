@@ -11,6 +11,7 @@ use Class::Tiny qw/
     # Lexeme data
     #
     _NAME                 => sub { return '' },
+    _S1                   => sub { return '' },
     _SYSTEMLITERALINNER   => sub { return '' },
     _ENTITYVALUEINNER     => sub { return '' },
     _ATTVALUEINNER        => sub { return '' },
@@ -19,11 +20,12 @@ use Class::Tiny qw/
     #
     # Other events
     #
+    _Name                 => sub { return '' },
+    _S                    => sub { return '' },
     _SystemLiteral        => sub { return '' },
     _EntityValue          => sub { return '' },
     _AttValue             => sub { return '' },
     _PubidLiteral         => sub { return '' },
-    _Name                 => sub { return '' },
 
     #
     # Filling data for validation
@@ -148,12 +150,14 @@ Returns callbacks as a hash of coderef. This is a class method.
 sub callbacks {
     return {
         'NAME$'                 => \&NAME,
+        'S1$'                   => \&S1,
         'SYSTEMLITERALINNER$'   => \&SYSTEMLITERALINNER,
         'ENTITYVALUEINNER$'     => \&ENTITYVALUEINNER,
         'ATTVALUEINNER$'        => \&ATTVALUEINNER,
         'PUBIDCHARINNER$'       => \&PUBIDCHARINNER,
 
         'Name$'                 => \&Name,
+        'S$'                    => \&S,
         'doctypedecl_Name[]'    => \&doctypedecl_Name,
         'EntityValue$'          => \&EntityValue,
         'AttValue$'             => \&AttValue,
@@ -174,6 +178,20 @@ sub NAME {
     return $self->_NAME($recognizer->lexemeLastPause('NAME'))
 }
 
+=head2 $self->S1($recognizer, $eventref)
+
+S1's lexeme completion callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub S1 {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # S1                        ~ [\x{20}\x{9}\x{D}\x{A}]
+    #
+    return $self->_S1($recognizer->lexemeLastPause('S1'))
+}
+
 =head2 $self->Name($recognizer, $eventref)
 
 Name callback. This is an instance method. Returns a true value on success, a false value on failure.
@@ -188,6 +206,32 @@ sub Name {
     $self->_Name($self->_NAME);
     $self->_NAME('');
     $log->debugf('Name: %s', $self->_Name);
+    return 1
+}
+
+=head2 $self->S($recognizer, $eventref)
+
+S callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub S {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # S ::= S1++
+    #
+    $self->_S($self->_S . $self->_S1);
+    $self->_S1('');
+    #
+    # 2.11 End-of-Line Handling
+    #
+    # the XML processor MUST behave as if it normalized all line breaks in external parsed entities (including the document entity) on input, before parsing, by translating both the two-character sequence #xD #xA and any #xD that is not followed by #xA to a single #xA character.
+    #
+    my $S = $self->_S;
+    $S =~ s/\x{D}\x{A}?/\x{A}/g;
+    $self->_S($S);
+
+    $log->debugf('S: %s', $self->_S);
     return 1
 }
 
@@ -368,9 +412,7 @@ __DATA__
 document           ::= prolog element <Misc any>
 # event Char$ = completed Char
 Char               ::= [\x{9}\x{A}\x{D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]:u name => Char
-# event S1$ = completed S1
-S1                 ::= [\x{20}\x{9}\x{D}\x{A}]
-# event S$ = completed S
+event S$ = completed S
 S                  ::= S1+
 # event NameStartChar$ = completed NameStartChar
 NameStartChar      ::= [:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}]:u
@@ -889,3 +931,6 @@ ELEMENT_VALUE               ~ [^\s\S]
 :lexeme ::= PUBIDCHAR2 pause => after event => PUBIDCHARINNER$
 PUBIDCHAR                 ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-'()+,./:=?;!*#@$_%]
 PUBIDCHAR2                ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-()+,./:=?;!*#@$_%]  # Same as PUBIDCHAR but without '
+
+:lexeme ::= S1  pause => after event => S1$
+S1                        ~ [\x{20}\x{9}\x{D}\x{A}]
