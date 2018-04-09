@@ -5,19 +5,30 @@ package MarpaX::ESLIF::XML::Parser::Grammar::XML10;
 use Class::Tiny qw/
     valid
     wellformed
-    _NAME
-    _VC_Root_Element_Type
     /,
 {
-    _SYSTEMLITERALINNER => sub { return '' },
-    _ENTITYVALUEINNER   => sub { return '' },
-    _ATTVALUEINNER      => sub { return '' },
-    _PUBIDLITERALINNER  => sub { return '' },
+    #
+    # Lexeme data
+    #
+    _NAME                 => sub { return '' },
+    _SYSTEMLITERALINNER   => sub { return '' },
+    _ENTITYVALUEINNER     => sub { return '' },
+    _ATTVALUEINNER        => sub { return '' },
+    _PUBIDLITERALINNER    => sub { return '' },
 
-    _SystemLiteral      => sub { return '' },
-    _EntityValue        => sub { return '' },
-    _AttValue           => sub { return '' },
-    _PubidLiteral       => sub { return '' },
+    #
+    # Other events
+    #
+    _SystemLiteral        => sub { return '' },
+    _EntityValue          => sub { return '' },
+    _AttValue             => sub { return '' },
+    _PubidLiteral         => sub { return '' },
+    _Name                 => sub { return '' },
+
+    #
+    # Filling data for validation
+    #
+    _VC_Root_Element_Type => sub { return '' },
 };
 use Log::Any qw/$log/;
 use Role::Tiny::With;
@@ -128,23 +139,22 @@ sub element_end_symbols {
     return [ qw/ELEMENT_END1 ELEMENT_END2/ ]
 }
 
-=head2 $class->grammar_callbacks
+=head2 $class->callbacks
 
-Returns grammar callbacks. This is a class method.
+Returns callbacks as a hash of coderef. This is a class method.
 
 =cut
 
-sub grammar_callbacks {
+sub callbacks {
     return {
         'NAME$'                 => \&NAME,
-        'doctypedecl_Name[]'    => \&doctypedecl_Name,
-
+        'SYSTEMLITERALINNER$'   => \&SYSTEMLITERALINNER,
         'ENTITYVALUEINNER$'     => \&ENTITYVALUEINNER,
         'ATTVALUEINNER$'        => \&ATTVALUEINNER,
-        'SYSTEMLITERALINNER$'   => \&SYSTEMLITERALINNER,
-        'PUBIDCHAR$'            => \&PUBIDCHAR,
-        'PUBIDCHAR2$'           => \&PUBIDCHAR2,
+        'PUBIDCHARINNER$'       => \&PUBIDCHARINNER,
 
+        'Name$'                 => \&Name,
+        'doctypedecl_Name[]'    => \&doctypedecl_Name,
         'EntityValue$'          => \&EntityValue,
         'AttValue$'             => \&AttValue,
         'SystemLiteral$'        => \&SystemLiteral,
@@ -164,6 +174,23 @@ sub NAME {
     return $self->_NAME($recognizer->lexemeLastPause('NAME'))
 }
 
+=head2 $self->Name($recognizer, $eventref)
+
+Name callback. This is an instance method. Returns a true value on success, a false value on failure.
+
+=cut
+
+sub Name {
+    my ($self, $recognizer, $eventref) = @_;
+    #
+    # Name ::= NAME
+    #
+    $self->_Name($self->_NAME);
+    $self->_NAME('');
+    $log->debugf('Name: %s', $self->_Name);
+    return 1
+}
+
 =head2 $self->doctypedecl_Name($recognizer, $eventref)
 
 doctypedecl's Name callback. This is an instance method. Returns a true value on success, a false value on failure.
@@ -173,12 +200,12 @@ doctypedecl's Name callback. This is an instance method. Returns a true value on
 sub doctypedecl_Name {
     my ($self, $recognizer, $eventref) = @_;
     #
-    # '<!DOCTYPE' S Name       ... and Name ::= NAME
+    # '<!DOCTYPE' S Name ...
     #
     # Register root element type validation constraint
     #
-    $self->_VC_Root_Element_Type($self->_NAME);
-    $log->debugf('doctypedecl Name: %s', $self->_NAME);
+    $self->_VC_Root_Element_Type($self->_Name);
+    $log->debugf('VC_Root_Element_Type registered: %s', $self->_VC_Root_Element_Type);
     return 1
 }
 
@@ -227,30 +254,17 @@ sub SYSTEMLITERALINNER {
     return $self->_SYSTEMLITERALINNER($self->_SYSTEMLITERALINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
 }
 
-=head2 $self->PUBIDCHAR($recognizer, $eventref)
+=head2 $self->PUBIDCHARINNER($recognizer, $eventref)
 
 PUBIDCHAR lexeme callback. This is an instance method. Returns a true value on success, a false value on failure.
 
 =cut
 
-sub PUBIDCHAR {
+sub PUBIDCHARINNER {
     my ($self, $recognizer, $eventref) = @_;
     #
     # PUBIDCHAR                 ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-'()+,./:=?;!*#@$_%]
-    #
-    return $self->_PUBIDLITERALINNER($self->_PUBIDLITERALINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
-}
-
-=head2 $self->PUBIDCHAR2($recognizer, $eventref)
-
-PUBIDCHAR2 lexeme callback. This is an instance method. Returns a true value on success, a false value on failure.
-
-=cut
-
-sub PUBIDCHAR2 {
-    my ($self, $recognizer, $eventref) = @_;
-    #
-    # PUBIDCHAR2                ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-()+,./:=?;!*#@$_%]  # Same as PUBIDCHAR but without 'x
+    # PUBIDCHAR2                ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-()+,./:=?;!*#@$_%]  # Same as PUBIDCHAR but without '
     #
     return $self->_PUBIDLITERALINNER($self->_PUBIDLITERALINNER . $recognizer->lexemeLastPause($eventref->{symbol}))
 }
@@ -362,7 +376,7 @@ S                  ::= S1+
 NameStartChar      ::= [:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}]:u
 # event NameChar$ = completed NameChar
 NameChar           ::= [:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]:u
-# event Name$ = completed Name
+event Name$ = completed Name
 # Name               ::= NameStartChar <NameChar any>
 Name               ::= <NAME>
 # event Names$ = completed Names
@@ -871,7 +885,7 @@ ELEMENT_VALUE               ~ [^\s\S]
 <SYSTEMLITERALDQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{21}\x{23}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
 <SYSTEMLITERALSQINNER>    ~ /[\x{9}\x{A}\x{D}\x{20}-\x{26}\x{28}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]+/u
 
-:lexeme ::= PUBIDCHAR  pause => after event => PUBIDCHAR$
-:lexeme ::= PUBIDCHAR2 pause => after event => PUBIDCHAR2$
+:lexeme ::= PUBIDCHAR  pause => after event => PUBIDCHARINNER$
+:lexeme ::= PUBIDCHAR2 pause => after event => PUBIDCHARINNER$
 PUBIDCHAR                 ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-'()+,./:=?;!*#@$_%]
 PUBIDCHAR2                ~ [\x{20}\x{D}\x{A}a-zA-Z0-9\-()+,./:=?;!*#@$_%]  # Same as PUBIDCHAR but without '
