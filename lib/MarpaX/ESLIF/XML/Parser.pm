@@ -22,7 +22,6 @@ my $xml10_element_end_event;
 my $xml10_element_value_symbol;
 my $xml10_element_start_symbols;
 my $xml10_element_end_symbols;
-my $xml10_callbacks;
 
 use Class::Tiny qw/
     valid
@@ -41,7 +40,6 @@ use Class::Tiny qw/
     xml10_element_value_symbol  => sub { return $xml10_element_value_symbol  //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_value_symbol },
     xml10_element_start_symbols => sub { return $xml10_element_start_symbols //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_start_symbols },
     xml10_element_end_symbols   => sub { return $xml10_element_end_symbols   //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->element_end_symbols },
-    xml10_callbacks             => sub { return $xml10_callbacks             //= MarpaX::ESLIF::XML::Parser::Grammar::XML10->callbacks }
 };
 
 my $BOM_GRAMMAR     = MarpaX::ESLIF::Grammar->new($ESLIF, ${__PACKAGE__->section_data('BOM')});
@@ -308,7 +306,6 @@ sub parse {
         $xmlcls{element_value_symbol}  = $self->xml10_element_value_symbol;
         $xmlcls{element_start_symbols} = $self->xml10_element_start_symbols;
         $xmlcls{element_end_symbols}   = $self->xml10_element_end_symbols;
-        $xmlcls{callbacks}             = $self->xml10_callbacks;
     } else {
         croak 'MarpaX::ESLIF::XML::Parser::Grammar::XML11 not yet implemented'
     }
@@ -414,15 +411,7 @@ sub _manage_events {
             #
             return $currentRecognizer->lexemeRead($symbol, undef, bytes::length($data))
         } else {
-            my $coderef = $xmlcls->{callbacks}->{$event} // '';
-            if (ref($coderef) eq 'CODE') {
-                if (! $xmlobj->$coderef($currentRecognizer, $_)) {
-                    $log->noticef('%s event callback returned false', $event);
-                    return 0
-                }
-            } else {
-                $log->noticef('%s event not handled', $event);
-            }
+            $log->noticef('%s event not handled', $event)
         }
     }
 
